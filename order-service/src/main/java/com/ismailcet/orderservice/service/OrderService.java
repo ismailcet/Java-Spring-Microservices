@@ -5,12 +5,13 @@ import com.ismailcet.orderservice.dto.OrderLineItemsDto;
 import com.ismailcet.orderservice.dto.OrderRequest;
 import com.ismailcet.orderservice.entity.Order;
 import com.ismailcet.orderservice.entity.OrderLineItems;
+import com.ismailcet.orderservice.event.OrderPlaceEvent;
 import com.ismailcet.orderservice.repository.OrderRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -22,9 +23,11 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final WebClient.Builder webClientBuilder;
-    public OrderService(OrderRepository orderRepository, WebClient.Builder webClientBuilder) {
+    private final KafkaTemplate<String, OrderPlaceEvent> kafkaTemplate;
+    public OrderService(OrderRepository orderRepository, WebClient.Builder webClientBuilder, KafkaTemplate kafkaTemplate) {
         this.orderRepository = orderRepository;
         this.webClientBuilder = webClientBuilder;
+        this.kafkaTemplate = kafkaTemplate;
     }
 
     public void placeOrder(OrderRequest orderRequest){
@@ -55,8 +58,9 @@ public class OrderService {
             result =false;
         }
 
-        log.info("{}"+result);
+
         if(result){
+            kafkaTemplate.send("notificationTopic",new OrderPlaceEvent(order.getOrderNumber()));
             orderRepository.save(order);
         }else {
             throw new IllegalArgumentException("Product is not in stock, please try again later");
